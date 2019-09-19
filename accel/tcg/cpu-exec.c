@@ -37,6 +37,7 @@
 #endif
 #include "sysemu/cpus.h"
 #include "sysemu/replay.h"
+#include "roaring.h"
 
 /* -icount align implementation. */
 
@@ -56,6 +57,7 @@ typedef struct SyncClocks {
 #define MAX_DELAY_PRINT_RATE 2000000000LL
 #define MAX_NB_PRINTS 100
 
+static roaring_bitmap_t *block_bitmap = NULL;
 static void align_clocks(SyncClocks *sc, CPUState *cpu)
 {
     int64_t cpu_icount;
@@ -254,6 +256,13 @@ void cpu_exec_step_atomic(CPUState *cpu)
         cc->cpu_exec_enter(cpu);
         /* execute the generated code */
         trace_exec_tb(tb, pc);
+	if (!block_bitmap)
+		block_bitmap = roaring_bitmap_create();
+	assert(block_bitmap);
+	if (!roaring_bitmap_contains(block_bitmap, pc)) {
+		trace_exec_tb_block(tb, pc, tb->size, tb->icount);
+		roaring_bitmap_add(block_bitmap, pc);
+	}
         cpu_tb_exec(cpu, tb);
         cc->cpu_exec_exit(cpu);
     } else {
@@ -616,6 +625,13 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     int32_t insns_left;
 
     trace_exec_tb(tb, tb->pc);
+    if (!block_bitmap)
+	    block_bitmap = roaring_bitmap_create();
+    assert(block_bitmap);
+    if (! roaring_bitmap_contains(block_bitmap, tb->pc)) {
+	    trace_exec_tb_block(tb, tb->pc, tb->size, tb->icount);
+	    roaring_bitmap_add(block_bitmap, pc);
+    }
     ret = cpu_tb_exec(cpu, tb);
     tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
     *tb_exit = ret & TB_EXIT_MASK;
