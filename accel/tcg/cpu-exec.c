@@ -36,10 +36,25 @@
 #endif
 #include "sysemu/cpus.h"
 #include "sysemu/replay.h"
-#include "roaring.h"
+#include "qemu/bitmap.h"
 #define KERNEL_TEXT_START 0xffffffff81000000
+#define KERNEL_TEXT_SIZE_MAX       0x1000000
 #define START_MARK        0x0000333333333000
 #define END_MARK          0x0000222222222000
+
+inline static int should_trace_block(unsigned long pc, unsigned int size) {
+	static unsigned long *bitmap = NULL;
+	if (!bitmap)
+		bitmap = bitmap_new(KERNEL_TEXT_SIZE_MAX);
+	assert(bitmap);
+	if (pc == START_MARK || pc == END_MARK)
+		return 1;
+	if (pc < KERNEL_TEXT_START)
+		return 0;
+	if (!test_and_set_bit(pc - KERNEL_TEXT_START, bitmap))
+		return 1;
+	return 0;
+}
 
 /* -icount align implementation. */
 
@@ -59,7 +74,6 @@ typedef struct SyncClocks {
 #define MAX_DELAY_PRINT_RATE 2000000000LL
 #define MAX_NB_PRINTS 100
 
-static roaring_bitmap_t *block_bitmap = NULL;
 
 static void align_clocks(SyncClocks *sc, const CPUState *cpu)
 {
@@ -265,14 +279,8 @@ void cpu_exec_step_atomic(CPUState *cpu)
         cc->cpu_exec_enter(cpu);
         /* execute the generated code */
         trace_exec_tb(tb, pc);
-	if (!block_bitmap)
-		block_bitmap = roaring_bitmap_create();
-	assert(block_bitmap);
-	if ((pc >= KERNEL_TEXT_START || pc == START_MARK || pc == END_MARK) &&
-			!roaring_bitmap_contains(block_bitmap, pc -
-				KERNEL_TEXT_START)) {
+	if (should_trace_block(pc, tb->size)) {
 		trace_exec_tb_block(tb, pc, tb->size, tb->icount);
-		roaring_bitmap_add(block_bitmap, pc - KERNEL_TEXT_START);
 	}
         cpu_tb_exec(cpu, tb);
         cc->cpu_exec_exit(cpu);
@@ -636,19 +644,10 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     uintptr_t ret;
     int32_t insns_left;
-    target_ulong pc;
 
     trace_exec_tb(tb, tb->pc);
-    pc = tb->pc;
-    if (!block_bitmap)
-	    block_bitmap = roaring_bitmap_create();
-    assert(block_bitmap);
-    if ((pc >= KERNEL_TEXT_START || pc == START_MARK || pc == END_MARK) &&
-		    !roaring_bitmap_contains(block_bitmap, pc -
-			    KERNEL_TEXT_START)) {
-	    trace_exec_tb_block(tb, pc, tb->size, tb->icount);
-	    roaring_bitmap_add(block_bitmap, pc - KERNEL_TEXT_START);
-    }
+    if (should_trace_block(tb->pc, tb->size))
+	    trace_exec_tb_block(tb, tb->pc, tb->size, tb->icount);
     ret = cpu_tb_exec(cpu, tb);
     tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
     *tb_exit = ret & TB_EXIT_MASK;
