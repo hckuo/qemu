@@ -37,6 +37,9 @@
 #include "sysemu/cpus.h"
 #include "sysemu/replay.h"
 #include "roaring.h"
+#define KERNEL_TEXT_START 0xffffffff81000000
+#define START_MARK        0x0000333333333000
+#define END_MARK          0x0000222222222000
 
 /* -icount align implementation. */
 
@@ -265,8 +268,11 @@ void cpu_exec_step_atomic(CPUState *cpu)
 	if (!block_bitmap)
 		block_bitmap = roaring_bitmap_create();
 	assert(block_bitmap);
-	if (!roaring_bitmap_contains(block_bitmap, pc)) {
+	if ((pc >= KERNEL_TEXT_START || pc == START_MARK || pc == END_MARK) &&
+			!roaring_bitmap_contains(block_bitmap, pc -
+				KERNEL_TEXT_START)) {
 		trace_exec_tb_block(tb, pc, tb->size, tb->icount);
+		roaring_bitmap_add(block_bitmap, pc - KERNEL_TEXT_START);
 	}
         cpu_tb_exec(cpu, tb);
         cc->cpu_exec_exit(cpu);
@@ -630,13 +636,18 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     uintptr_t ret;
     int32_t insns_left;
+    target_ulong pc;
 
     trace_exec_tb(tb, tb->pc);
+    pc = tb->pc;
     if (!block_bitmap)
 	    block_bitmap = roaring_bitmap_create();
     assert(block_bitmap);
-    if (! roaring_bitmap_contains(block_bitmap, tb->pc)) {
-	    trace_exec_tb_block(tb, tb->pc, tb->size, tb->icount);
+    if ((pc >= KERNEL_TEXT_START || pc == START_MARK || pc == END_MARK) &&
+		    !roaring_bitmap_contains(block_bitmap, pc -
+			    KERNEL_TEXT_START)) {
+	    trace_exec_tb_block(tb, pc, tb->size, tb->icount);
+	    roaring_bitmap_add(block_bitmap, pc - KERNEL_TEXT_START);
     }
     ret = cpu_tb_exec(cpu, tb);
     tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
