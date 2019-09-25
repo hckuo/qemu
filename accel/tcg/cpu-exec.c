@@ -44,6 +44,7 @@
 
 inline static int should_trace_block(unsigned long pc, unsigned int size) {
 	static unsigned long *bitmap = NULL;
+	assert(pc < KERNEL_TEXT_START + KERNEL_TEXT_SIZE_MAX);
 	if (!bitmap)
 		bitmap = bitmap_new(KERNEL_TEXT_SIZE_MAX);
 	assert(bitmap);
@@ -51,8 +52,10 @@ inline static int should_trace_block(unsigned long pc, unsigned int size) {
 		return 1;
 	if (pc < KERNEL_TEXT_START)
 		return 0;
-	if (!test_and_set_bit(pc - KERNEL_TEXT_START, bitmap))
-		return 1;
+	for (int i = pc; i < pc + size; i++) {
+		if (!test_and_set_bit(i-KERNEL_TEXT_START, bitmap))
+			return 1;
+	}
 	return 0;
 }
 
