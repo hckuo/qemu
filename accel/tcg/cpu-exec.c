@@ -283,7 +283,8 @@ void cpu_exec_step_atomic(CPUState *cpu)
         /* execute the generated code */
         trace_exec_tb(tb, pc);
 	if (should_trace_block(pc, tb->size)) {
-		trace_exec_tb_block(tb, pc, tb->size, tb->icount);
+		trace_exec_tb_block_cr3(tb, pc, tb->size, tb->icount,
+				((CPUX86State*)cpu->env_ptr)->cr[3]);
 	}
         cpu_tb_exec(cpu, tb);
         cc->cpu_exec_exit(cpu);
@@ -650,7 +651,8 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 
     trace_exec_tb(tb, tb->pc);
     if (should_trace_block(tb->pc, tb->size))
-	    trace_exec_tb_block(tb, tb->pc, tb->size, tb->icount);
+	    trace_exec_tb_block_cr3(tb, tb->pc, tb->size, tb->icount,
+				((CPUX86State*)cpu->env_ptr)->cr[3]);
     ret = cpu_tb_exec(cpu, tb);
     tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
     *tb_exit = ret & TB_EXIT_MASK;

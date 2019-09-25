@@ -5,7 +5,8 @@
 disable exec_tb(void *tb, uintptr_t pc) "tb:%p pc=0x%"PRIxPTR
 disable exec_tb_nocache(void *tb, uintptr_t pc) "tb:%p pc=0x%"PRIxPTR
 disable exec_tb_exit(void *last_tb, unsigned int flags) "tb:%p flags=0x%x"
-exec_tb_block(void *tb, uintptr_t pc, uint16_t size, uint32_t icount) "t b:%p pc=0x%" PRIxPTR " size=%d icount=%d"
+disable exec_tb_block(void *tb, uintptr_t pc, uint16_t size, uint32_t icount) "t b:%p pc=0x%" PRIxPTR " size=%d icount=%d"
+exec_tb_block_cr3(void *tb, uintptr_t pc, uint16_t size, uint32_t icount, uintptr_t cr3) "t b:%p pc=0x%" PRIxPTR " size=%d icount=%d CR3=%016" PRIx64
 
 # translate-all.c
 translate_block(void *tb, uintptr_t pc, uint8_t *tb_code) "tb:%p, pc:0x%"PRIxPTR", tb_code:%p"
