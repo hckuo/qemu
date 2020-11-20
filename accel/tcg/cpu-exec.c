@@ -628,9 +628,9 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     if (!block_bitmap)
 	    block_bitmap = roaring_bitmap_create();
     assert(block_bitmap);
-    if (! roaring_bitmap_contains(block_bitmap, tb->pc)) {
+    if (!roaring_bitmap_contains(block_bitmap, tb->pc)) {
 	    trace_exec_tb_block(tb, tb->pc, tb->size, tb->icount);
-	    roaring_bitmap_add(block_bitmap, pc);
+	    roaring_bitmap_add(block_bitmap, tb->pc);
     }
     ret = cpu_tb_exec(cpu, tb);
     tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
